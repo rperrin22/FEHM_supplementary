@@ -18,3 +18,10 @@ The class is currently built to take an externally generated surface and use it 
 - ***write_input_file():*** build the input file for the FEHM run
 - ***write_control_file():*** build the control file for the FEHM run
 
+### Prerequisites:
+
+- numpy
+- pandas
+- pylagrit
+- matplotlib
+- scipy
