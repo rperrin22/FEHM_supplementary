@@ -5,24 +5,25 @@ from matplotlib import pyplot as plt
 from scipy import interpolate
 
 class create_FEHM_run:
-    def __init__(self,file_prefix,param_file):
+    def __init__(self,test_number,param_file):
 
         # read in the parameter file
-        headings = ['parameter','value']
-        params = pd.read_csv(param_file,names=headings)
+        temp = pd.read_csv(param_file)
+        params = temp[temp.test_num==test_number]
 
         # initialize the geometry
-        self.upper_numlayers = int(params.loc[params.parameter=='upper_numlayers', 'value'].values[0])
-        self.middle_numlayers = int(params.loc[params.parameter=='middle_numlayers', 'value'].values[0])
-        self.lower_numlayers = int(params.loc[params.parameter=='lower_numlayers', 'value'].values[0])
-        self.min_x = float(params.loc[params.parameter=='min_x', 'value'].values[0])
-        self.min_y = float(params.loc[params.parameter=='min_y', 'value'].values[0])
-        self.min_z = float(params.loc[params.parameter=='min_z', 'value'].values[0])
-        self.max_x = float(params.loc[params.parameter=='max_x', 'value'].values[0])
-        self.max_y = float(params.loc[params.parameter=='max_y', 'value'].values[0])
-        self.max_z = float(params.loc[params.parameter=='max_z', 'value'].values[0])
-        self.dx = float(params.loc[params.parameter=='dx', 'value'].values[0])
-        self.dy = float(params.loc[params.parameter=='dy', 'value'].values[0])
+        file_prefix = params['prefix'].values[0]
+        self.upper_numlayers = int(params['upper_numlayers'].values[0])
+        self.middle_numlayers = int(params['middle_numlayers'].values[0])
+        self.lower_numlayers = int(params['lower_numlayers'].values[0])
+        self.min_x = float(params['min_x'].values[0])
+        self.min_y = float(params['min_y'].values[0])
+        self.min_z = float(params['min_z'].values[0])
+        self.max_x = float(params['max_x'].values[0])
+        self.max_y = float(params['max_y'].values[0])
+        self.max_z = float(params['max_z'].values[0])
+        self.dx = float(params['dx'].values[0])
+        self.dy = float(params['dy'].values[0])
         self.dz = (self.max_z - self.min_z + 1)/(self.upper_numlayers + self.middle_numlayers + self.lower_numlayers)
         self.xvec = np.arange(self.min_x,self.max_x,self.dx)
         self.yvec = np.arange(self.min_y,self.max_y,self.dy)
@@ -38,77 +39,80 @@ class create_FEHM_run:
         self.input_filename = '%s_input.dat' % file_prefix
         self.control_filename = 'fehmn.files'
         self.prefix_name = '%s' % file_prefix
-        self.lagrit_exec_filename = params.loc[params.parameter=='lagrit_exec', 'value'].values[0]
+        self.lagrit_exec_filename = params['lagrit_exec'].values[0]
 
         # populate model parameters
         self.title = '%s_input.dat' % file_prefix
-        self.grad_cond1 = float(params.loc[params.parameter=='grad_cond1', 'value'].values[0])
-        self.grad_cond2 = float(params.loc[params.parameter=='grad_cond2', 'value'].values[0])
-        self.grad_cond3 = float(params.loc[params.parameter=='grad_cond3', 'value'].values[0])
-        self.grad_ref_loc = float(params.loc[params.parameter=='grad_ref_loc', 'value'].values[0])
-        self.grad_direction = float(params.loc[params.parameter=='grad_direction', 'value'].values[0])
-        self.grad_ref_sat = float(params.loc[params.parameter=='grad_ref_sat', 'value'].values[0])
-        self.grad_sat_slope = float(params.loc[params.parameter=='grad_sat_slope', 'value'].values[0])
-        self.grad_ref_temp = float(params.loc[params.parameter=='grad_ref_temp', 'value'].values[0])
-        self.grad_temp_slope = float(params.loc[params.parameter=='grad_temp_slope', 'value'].values[0])
-        self.grad_ref_pres = float(params.loc[params.parameter=='grad_ref_pres', 'value'].values[0])
-        self.grad_pres_slope = float(params.loc[params.parameter=='grad_pres_slope', 'value'].values[0])
-        self.perm_lower = float(params.loc[params.parameter=='perm_lower', 'value'].values[0])
-        self.perm_middle_ocean = float(params.loc[params.parameter=='perm_middle_ocean', 'value'].values[0])
-        self.perm_middle_continental = float(params.loc[params.parameter=='perm_middle_continental', 'value'].values[0])
-        self.perm_upper = float(params.loc[params.parameter=='perm_upper', 'value'].values[0])
-        self.temp_lower = float(params.loc[params.parameter=='temp_lower', 'value'].values[0])
-        self.temp_upper = float(params.loc[params.parameter=='temp_upper', 'value'].values[0])
-        self.mult_lower = float(params.loc[params.parameter=='mult_lower', 'value'].values[0])
-        self.mult_upper = float(params.loc[params.parameter=='mult_upper', 'value'].values[0])
-        self.cond_lower = float(params.loc[params.parameter=='cond_lower', 'value'].values[0])
-        self.cond_middle_ocean = float(params.loc[params.parameter=='cond_middle_ocean', 'value'].values[0])
-        self.cond_middle_continental = float(params.loc[params.parameter=='cond_middle_continental', 'value'].values[0])
-        self.cond_upper = float(params.loc[params.parameter=='cond_upper', 'value'].values[0])
-        self.rock_density = float(params.loc[params.parameter=='rock_density', 'value'].values[0])
-        self.rock_spec_heat = float(params.loc[params.parameter=='rock_spec_heat', 'value'].values[0])
-        self.rock_porosity = float(params.loc[params.parameter=='rock_porosity', 'value'].values[0])
+        self.grad_cond1 = float(params['grad_cond1'].values[0])
+        self.grad_cond2 = float(params['grad_cond2'].values[0])
+        self.grad_cond3 = float(params['grad_cond3'].values[0])
+        self.grad_ref_loc = float(params['grad_ref_loc'].values[0])
+        self.grad_direction = float(params['grad_direction'].values[0])
+        self.grad_ref_sat = float(params['grad_ref_sat'].values[0])
+        self.grad_sat_slope = float(params['grad_sat_slope'].values[0])
+        self.grad_ref_temp = float(params['grad_ref_temp'].values[0])
+        self.grad_temp_slope = float(params['grad_temp_slope'].values[0])
+        self.grad_ref_pres = float(params['grad_ref_pres'].values[0])
+        self.grad_pres_slope = float(params['grad_pres_slope'].values[0])
+        self.perm_lower = float(params['perm_lower'].values[0])
+        self.perm_middle_ocean = float(params['perm_middle_ocean'].values[0])
+        self.perm_middle_continental = float(params['perm_middle_continental'].values[0])
+        self.perm_upper = float(params['perm_upper'].values[0])
+        self.temp_lower = float(params['temp_lower'].values[0])
+        self.temp_upper = float(params['temp_upper'].values[0])
+        self.mult_lower = float(params['mult_lower'].values[0])
+        self.mult_upper = float(params['mult_upper'].values[0])
+        self.cond_lower = float(params['cond_lower'].values[0])
+        self.cond_middle_ocean = float(params['cond_middle_ocean'].values[0])
+        self.cond_middle_continental = float(params['cond_middle_continental'].values[0])
+        self.cond_upper = float(params['cond_upper'].values[0])
+        self.rock_density = float(params['rock_density'].values[0])
+        self.rock_spec_heat = float(params['rock_spec_heat'].values[0])
+        self.rock_porosity = float(params['rock_porosity'].values[0])
         self.solids_cond = 2
         self.water_cond = 0.604
-        self.init_time_step = float(params.loc[params.parameter=='init_time_step', 'value'].values[0])
-        self.final_sim_time = float(params.loc[params.parameter=='final_sim_time', 'value'].values[0])
-        self.max_time_steps = float(params.loc[params.parameter=='max_time_steps', 'value'].values[0])
-        self.info_print_int = float(params.loc[params.parameter=='info_print_int', 'value'].values[0])
-        self.crust_thickness = float(params.loc[params.parameter=='crust_thickness', 'value'].values[0])
+        self.init_time_step = float(params['init_time_step'].values[0])
+        self.final_sim_time = float(params['final_sim_time'].values[0])
+        self.max_time_steps = float(params['max_time_steps'].values[0])
+        self.info_print_int = float(params['info_print_int'].values[0])
+        self.crust_thickness = float(params['crust_thickness'].values[0])
 
-        self.max_iterations = float(params.loc[params.parameter=='max_iterations', 'value'].values[0])
-        self.newton_tol = float(params.loc[params.parameter=='newton_tol', 'value'].values[0])
-        self.num_orth = float(params.loc[params.parameter=='num_orth', 'value'].values[0])
-        self.max_solve = float(params.loc[params.parameter=='max_solve', 'value'].values[0])
-        self.acc_method = params.loc[params.parameter=='acc_method', 'value'].values[0]
-        self.ja = float(params.loc[params.parameter=='ja', 'value'].values[0])
-        self.jb = float(params.loc[params.parameter=='jb', 'value'].values[0])
-        self.jc = float(params.loc[params.parameter=='jc', 'value'].values[0])
-        self.nards = float(params.loc[params.parameter=='nards', 'value'].values[0])
-        self.implicitness_factor = float(params.loc[params.parameter=='implicitness_factor', 'value'].values[0])
-        self.grav_direction = float(params.loc[params.parameter=='grav_direction', 'value'].values[0])
-        self.upstream_weight = float(params.loc[params.parameter=='upstream_weight', 'value'].values[0])
-        self.max_iter_mult = float(params.loc[params.parameter=='max_iter_mult', 'value'].values[0])
-        self.time_step_mult = float(params.loc[params.parameter=='time_step_mult', 'value'].values[0])
-        self.max_time_step_size = float(params.loc[params.parameter=='max_time_step_size', 'value'].values[0])
-        self.min_time_step_size = float(params.loc[params.parameter=='min_time_step_size', 'value'].values[0])
-        self.geom_id = float(params.loc[params.parameter=='geom_id', 'value'].values[0])
-        self.lda = float(params.loc[params.parameter=='lda', 'value'].values[0])
+        self.max_iterations = float(params['max_iterations'].values[0])
+        self.newton_tol = float(params['newton_tol'].values[0])
+        self.num_orth = float(params['num_orth'].values[0])
+        self.max_solve = float(params['max_solve'].values[0])
+        self.acc_method = params['acc_method'].values[0]
+        self.ja = float(params['ja'].values[0])
+        self.jb = float(params['jb'].values[0])
+        self.jc = float(params['jc'].values[0])
+        self.nards = float(params['nards'].values[0])
+        self.implicitness_factor = float(params['implicitness_factor'].values[0])
+        self.grav_direction = float(params['grav_direction'].values[0])
+        self.upstream_weight = float(params['upstream_weight'].values[0])
+        self.max_iter_mult = float(params['max_iter_mult'].values[0])
+        self.time_step_mult = float(params['time_step_mult'].values[0])
+        self.max_time_step_size = float(params['max_time_step_size'].values[0])
+        self.min_time_step_size = float(params['min_time_step_size'].values[0])
+        self.geom_id = float(params['geom_id'].values[0])
+        self.lda = float(params['lda'].values[0])
 
-        self.G1 = float(params.loc[params.parameter=='G1', 'value'].values[0])
-        self.G2 = float(params.loc[params.parameter=='G2', 'value'].values[0])
-        self.G3 = float(params.loc[params.parameter=='G3', 'value'].values[0])
-        self.TMCH = float(params.loc[params.parameter=='TMCH', 'value'].values[0])
-        self.OVERF = float(params.loc[params.parameter=='OVERF', 'value'].values[0])
-        self.IRDOF = float(params.loc[params.parameter=='IRDOF', 'value'].values[0])
-        self.ISLORD = float(params.loc[params.parameter=='ISLORD', 'value'].values[0])
-        self.IBACK = float(params.loc[params.parameter=='IBACK', 'value'].values[0])
-        self.ICOUPL = float(params.loc[params.parameter=='ICOUPL', 'value'].values[0])
-        self.RNMAX = float(params.loc[params.parameter=='RNMAX', 'value'].values[0])
+        self.G1 = float(params['G1'].values[0])
+        self.G2 = float(params['G2'].values[0])
+        self.G3 = float(params['G3'].values[0])
+        self.TMCH = float(params['TMCH'].values[0])
+        self.OVERF = float(params['OVERF'].values[0])
+        self.IRDOF = float(params['IRDOF'].values[0])
+        self.ISLORD = float(params['ISLORD'].values[0])
+        self.IBACK = float(params['IBACK'].values[0])
+        self.ICOUPL = float(params['ICOUPL'].values[0])
+        self.RNMAX = float(params['RNMAX'].values[0])
 
-        self.zbulk = float(params.loc[params.parameter=='zbulk', 'value'].values[0])
+        self.zbulk = float(params['zbulk'].values[0])
+
+        self.surf_filename = params['surf_filename'].values[0]
+        self.boundary_filename = params['boundary_filename'].values[0]
     
-    def build_surfaces_real(self,surf_filename):
+    def build_surfaces_real(self):
         # Brings in an externally-generated surface for the top of the crust.
         # The surface is space-delimited ascii file with 3 columns - X,Y,Z
 
@@ -117,7 +121,7 @@ class create_FEHM_run:
         self.XXtemp,self.YYtemp = np.meshgrid(self.xvec,self.yvec)
 
         header_list = ["X","Y","Z"]
-        self.D = pd.read_csv(surf_filename,sep=' ',names=header_list)
+        self.D = pd.read_csv(self.surf_filename,sep=' ',names=header_list)
 
         self.surf_upper = self.D['Z'].to_numpy() + self.zbulk
         self.surf_upper = np.reshape(self.surf_upper,self.XXtemp.shape)
@@ -187,11 +191,11 @@ class create_FEHM_run:
         self.DF = pd.DataFrame({'x':self.XX_out, 'y':self.YY_out, 'z':self.ZZ_out})
         self.DF.to_csv(self.csv_filename,index=False,header=False)
 
-    def read_boundary_file(self,boundary_filename):
+    def read_boundary_file(self):
         # load in the boundary file describing the location of the border between
         # the oceanic and continental crust
         colnames = ['Easting','Northing','Elevation']
-        self.FF = pd.read_csv(boundary_filename,skiprows=1,names=colnames,header=None)
+        self.FF = pd.read_csv(self.boundary_filename,skiprows=1,names=colnames,header=None)
         self.FF.Elevation = self.FF.Elevation + self.zbulk
     
     def build_zones(self):
