@@ -68,6 +68,8 @@ class create_FEHM_run:
         self.rock_density = float(params.loc[params.parameter=='rock_density', 'value'].values[0])
         self.rock_spec_heat = float(params.loc[params.parameter=='rock_spec_heat', 'value'].values[0])
         self.rock_porosity = float(params.loc[params.parameter=='rock_porosity', 'value'].values[0])
+        self.solids_cond = 2
+        self.water_cond = 0.604
         self.init_time_step = float(params.loc[params.parameter=='init_time_step', 'value'].values[0])
         self.final_sim_time = float(params.loc[params.parameter=='final_sim_time', 'value'].values[0])
         self.max_time_steps = float(params.loc[params.parameter=='max_time_steps', 'value'].values[0])
@@ -145,6 +147,34 @@ class create_FEHM_run:
         plt.colorbar()
         plt.show()
 
+    def build_mat_prop_files(self,rp_mult,rp_exp):
+        self.mat_prop_filename = '%s.rock' % self.prefix_name
+        self.cond_filename = '%s.cond' % self.prefix_name
+        PZ = open(self.mat_prop_filename,'w+')
+        CZ = open(self.cond_filename,'w+')
+
+        PZ.write('rock\n')
+        CZ.write('cond\n')
+
+        for x in self.node_nums_upper:
+            temp_depth = self.max_z - self.ZZ_out[x-1]
+            temp_porosity = rp_mult*np.exp(rp_exp*temp_depth/1000)
+            temp_cond = self.solids_cond**(1 - temp_porosity) * self.water_cond**(temp_porosity)
+            PZ.write('  %d %d 1 %d %d %.1f\n' % (x,x,self.rock_density,self.rock_spec_heat,temp_porosity))
+            CZ.write('  %d %d 1 %.2f %.2f %.2f\n' % (x,x,temp_cond,temp_cond,temp_cond))
+        for x in self.node_nums_middle_ocean:
+            PZ.write('  %d  %d  1  %d  %d  %.1f\n' % (x,x,self.rock_density,self.rock_spec_heat,self.rock_porosity))
+            CZ.write('  %d  %d  1  %.2f  %.2f  %.2f\n' % (x,x,self.cond_middle_ocean,self.cond_middle_ocean,self.cond_middle_ocean))
+        for x in self.node_nums_middle_continental:
+            PZ.write('  %d  %d  1  %d  %d  %.1f\n' % (x,x,self.rock_density,self.rock_spec_heat,self.rock_porosity))
+            CZ.write('  %d  %d  1  %.2f  %.2f  %.2f\n' % (x,x,self.cond_middle_continental,self.cond_middle_continental,self.cond_middle_continental))
+        for x in self.node_nums_bottom:
+            PZ.write('  %d  %d  1  %d  %d  %.1f\n' % (x,x,self.rock_density,self.rock_spec_heat,self.rock_porosity))
+            CZ.write('  %d  %d  1  %.2f  %.2f  %.2f\n' % (x,x,self.cond_lower,self.cond_lower,self.cond_lower))
+        PZ.write('\nstop')
+        PZ.close()
+        CZ.write('\nstop')
+        CZ.close()
 
     def save_coords_csv(self):
         # export a csv with the XYZ's for the mesh nodes.  This will be used later
@@ -170,7 +200,7 @@ class create_FEHM_run:
         self.DF['low_surf'] = 0
 
         for index,row in self.DF.iterrows():
-            self.DF.upp_surf[index] = self.fsurf(self.DF.x[index],self.DF.y[index])
+            self.DF.upp_surf[index] = self.fsurf(self.DF.x[index].copy(),self.DF.y[index].copy())
 
         self.DF.low_surf = self.DF.upp_surf - self.crust_thickness
         self.x_boun_vec = np.zeros(self.xvec.shape)
@@ -187,22 +217,23 @@ class create_FEHM_run:
         #      4 - sediments
         self.DF['mat_zone'] = self.DF['x_boun']*0
 
-        self.DF.mat_zone[self.DF.x[:] > self.DF.x_boun[:]] = 3  # setting continental crust
-        self.DF.mat_zone[self.DF.x[:] <= self.DF.x_boun[:]] = 2  # setting oceanic crust
-        self.DF.mat_zone[self.DF.z[:] < self.DF.low_surf[:]] = 1  # setting below the crust
-        self.DF.mat_zone[self.DF.z[:] > self.DF.upp_surf[:]] = 4  # setting the sediment zone
+        self.DF.mat_zone[self.DF.x[:].copy() > self.DF.x_boun[:].copy()] = 3  # setting continental crust
+        self.DF.mat_zone[self.DF.x[:].copy() <= self.DF.x_boun[:].copy()] = 2  # setting oceanic crust
+        self.DF.mat_zone[self.DF.z[:].copy() < self.DF.low_surf[:].copy()] = 1  # setting below the crust
+        self.DF.mat_zone[self.DF.z[:].copy() > self.DF.upp_surf[:].copy()] = 4  # setting the sediment zone
 
         self.DF['orig_ind'] = self.DF.index*1
 
 
         # create materials zone
-        testerbob = self.DF[self.DF.mat_zone==1]
+        # check the .copy() part
+        testerbob = self.DF[self.DF.mat_zone==1].copy()
         self.node_nums_bottom = testerbob[['orig_ind']].to_numpy()+1
-        testerbob = self.DF[self.DF.mat_zone==2]
+        testerbob = self.DF[self.DF.mat_zone==2].copy()
         self.node_nums_middle_ocean = testerbob[['orig_ind']].to_numpy()+1
-        testerbob = self.DF[self.DF.mat_zone==3]
+        testerbob = self.DF[self.DF.mat_zone==3].copy()
         self.node_nums_middle_continental = testerbob[['orig_ind']].to_numpy()+1
-        testerbob = self.DF[self.DF.mat_zone==4]
+        testerbob = self.DF[self.DF.mat_zone==4].copy()
         self.node_nums_upper = testerbob[['orig_ind']].to_numpy()+1
         
         MZ = open(self.material_zones_filename,'w+')
@@ -356,11 +387,8 @@ class create_FEHM_run:
         RZ.write('\n')
         RZ.write('# -----------------------------ROCK CONDUCTIVITY----------------------\n')
         RZ.write('cond\n')
-        RZ.write('-00001  0  0  %.2e  %.2e  %.2e\n' % (self.cond_lower,self.cond_lower,self.cond_lower))
-        RZ.write('-00002  0  0  %.2e  %.2e  %.2e\n' % (self.cond_middle_ocean,self.cond_middle_ocean,self.cond_middle_ocean))
-        RZ.write('-00003  0  0  %.2e  %.2e  %.2e\n' % (self.cond_middle_continental,self.cond_middle_continental,self.cond_middle_continental))
-        RZ.write('-00004  0  0  %.2e  %.2e  %.2e\n' % (self.cond_upper,self.cond_upper,self.cond_upper))
-        RZ.write('\n')
+        RZ.write('file\n')
+        RZ.write('%s\n' % self.cond_filename)
         RZ.write('# ----------------------PRODUCTION------------------------------------\n')
         RZ.write('zone\n')
         RZ.write('file\n')
@@ -371,8 +399,8 @@ class create_FEHM_run:
         RZ.write('\n')
         RZ.write('# ----------------------MAT PROPERTIES--------------------------------\n')
         RZ.write('rock\n')
-        RZ.write('1  0  0  %d  %d  %.1f\n' % (self.rock_density,self.rock_spec_heat,self.rock_porosity))
-        RZ.write('\n')
+        RZ.write('file\n')
+        RZ.write('%s\n' % self.mat_prop_filename)
         RZ.write('# -----------------------TIME STEPPING PARAMETERS---------------------\n')
         RZ.write('time\n')
         RZ.write('%.1f  %.1f  %d  %d\n' % (self.init_time_step,self.final_sim_time,self.max_time_steps,self.info_print_int))
