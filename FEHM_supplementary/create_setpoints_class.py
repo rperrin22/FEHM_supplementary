@@ -76,6 +76,8 @@ class create_FEHM_run:
         self.max_time_steps = float(params['max_time_steps'].values[0])
         self.info_print_int = float(params['info_print_int'].values[0])
         self.crust_thickness = float(params['crust_thickness'].values[0])
+        self.rp_mult = float(params['athy_multiplier'].values[0])
+        self.rp_exp = float(params['athy_exp'].values[0])
 
         self.max_iterations = float(params['max_iterations'].values[0])
         self.newton_tol = float(params['newton_tol'].values[0])
@@ -151,7 +153,7 @@ class create_FEHM_run:
         plt.colorbar()
         plt.show()
 
-    def build_mat_prop_files(self,rp_mult,rp_exp):
+    def build_mat_prop_files(self):
         self.mat_prop_filename = '%s.rock' % self.prefix_name
         self.cond_filename = '%s.cond' % self.prefix_name
         PZ = open(self.mat_prop_filename,'w+')
@@ -162,7 +164,7 @@ class create_FEHM_run:
 
         for x in self.node_nums_upper:
             temp_depth = self.max_z - self.ZZ_out[x-1]
-            temp_porosity = rp_mult*np.exp(rp_exp*temp_depth/1000)
+            temp_porosity = self.rp_mult*np.exp(self.rp_exp*temp_depth/1000)
             temp_cond = self.solids_cond**(1 - temp_porosity) * self.water_cond**(temp_porosity)
             PZ.write('  %d %d 1 %d %d %.1f\n' % (x,x,self.rock_density,self.rock_spec_heat,temp_porosity))
             CZ.write('  %d %d 1 %.2f %.2f %.2f\n' % (x,x,temp_cond,temp_cond,temp_cond))

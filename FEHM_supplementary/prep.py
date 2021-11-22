@@ -6,7 +6,7 @@ def setup_test_folders(param_file):
     for x in range(len(D)):
         cmd = 'mkdir %s' % D.prefix[x]
         os.system(cmd)
-        cmd = 'cp /mnt/c/FEHM_template_files/FEHM_v3.3.0linUb.04Dec15.exe %s/FEHM_lin.exe' % D.prefix[x]
+        cmd = 'cp FEHM_v3.3.0linUb.04Dec15.exe %s/FEHM_lin.exe' % D.prefix[x]
         os.system(cmd)
 
         pather = os.getcwd()
@@ -26,7 +26,7 @@ def setup_test_folders(param_file):
         RZ.write('D.read_boundary_file()\n')
         RZ.write('# make zone files\n')
         RZ.write('D.build_zones()\n')
-        RZ.write('D.build_mat_prop_files(0.7136,-0.3714)\n')
+        RZ.write('D.build_mat_prop_files()\n')
         RZ.write('D.run_lagrit()\n')
         RZ.write('D.write_input_file()\n')
         RZ.write('D.write_control_file()')
@@ -43,6 +43,7 @@ def build_run_script(param_file):
     for x in range(len(D)):
         RZ.write('cd %s\n' % D.prefix[x])
         RZ.write('python3 driver.py\n')
+        RZ.write('chmod 755 FEHM_lin.exe\n')
         RZ.write('./FEHM_lin.exe\n')
         RZ.write('cd ..\n')
         RZ.write('\n')
