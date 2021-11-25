@@ -58,10 +58,20 @@ class create_FEHM_run:
         self.perm_middle_ocean = float(params['perm_middle_ocean'].values[0])
         self.perm_middle_continental = float(params['perm_middle_continental'].values[0])
         self.perm_upper = float(params['perm_upper'].values[0])
-        self.temp_lower = float(params['temp_lower'].values[0])
-        self.temp_upper = float(params['temp_upper'].values[0])
+
         self.mult_lower = float(params['mult_lower'].values[0])
         self.mult_upper = float(params['mult_upper'].values[0])
+
+        # convert from mW/m^2 to MW if mult upper and lower are 0
+        if self.mult_lower == 0:
+            self.temp_lower = float(params['temp_lower'].values[0] * self.dx * self.dy / 1e9)
+        else:
+            self.temp_lower = float(params['temp_lower'].values[0])
+        if self.mult_upper ==0:
+            self.temp_upper = float(params['temp_upper'].values[0] * self.dx * self.dy / 1e9)
+        else:
+            self.temp_upper = float(params['temp_upper'].values[0])   
+
         self.cond_lower = float(params['cond_lower'].values[0])
         self.cond_middle_ocean = float(params['cond_middle_ocean'].values[0])
         self.cond_middle_continental = float(params['cond_middle_continental'].values[0])
@@ -307,6 +317,10 @@ class create_FEHM_run:
         # boundary zones will be:
         #   00005 - bottom boundary
         #   00006 - top boundary
+        #   00007 - top edges
+        #   00008 - bottom edges
+        #   00009 - top corners
+        #   00010 - bottom corners
 
         # in the future add one here to create a vertical internal boundary
         # that will be used to generate heat along the fault.
@@ -317,8 +331,47 @@ class create_FEHM_run:
         self.node_nums_domain_top = np.where(self.ZZ_out == max(self.ZZ_out))
         self.node_nums_domain_top = np.asarray(self.node_nums_domain_top).flatten()+1
 
+        self.node_nums_bottom_edges = np.where(
+                                            ((self.XX_out == max(self.XX_out)) | 
+                                            (self.YY_out == max(self.YY_out)) |
+                                            (self.XX_out == min(self.XX_out)) |
+                                            (self.YY_out == min(self.YY_out))) 
+                                            &
+                                            (self.ZZ_out == min(self.ZZ_out))
+                                              )
+
+        self.node_nums_top_edges = np.where(
+                                            ((self.XX_out == max(self.XX_out)) | 
+                                            (self.YY_out == max(self.YY_out)) |
+                                            (self.XX_out == min(self.XX_out)) |
+                                            (self.YY_out == min(self.YY_out))) 
+                                            &
+                                            (self.ZZ_out == max(self.ZZ_out))
+                                            )
+
+        self.node_nums_top_corners = np.where(
+                                             (
+                                            ( (self.XX_out == max(self.XX_out)) & (self.YY_out == max(self.YY_out)) ) | 
+                                            ( (self.XX_out == min(self.XX_out)) & (self.YY_out == max(self.YY_out)) ) |
+                                            ( (self.XX_out == max(self.XX_out)) & (self.YY_out == min(self.YY_out)) ) |
+                                            ( (self.XX_out == min(self.XX_out)) & (self.YY_out == min(self.YY_out)) )) 
+                                            &
+                                            (self.ZZ_out == max(self.ZZ_out))
+                                            )
+
+        self.node_nums_bottom_corners = np.where(
+                                             (
+                                            ( (self.XX_out == max(self.XX_out)) & (self.YY_out == max(self.YY_out)) ) | 
+                                            ( (self.XX_out == min(self.XX_out)) & (self.YY_out == max(self.YY_out)) ) |
+                                            ( (self.XX_out == max(self.XX_out)) & (self.YY_out == min(self.YY_out)) ) |
+                                            ( (self.XX_out == min(self.XX_out)) & (self.YY_out == min(self.YY_out)) )) 
+                                            &
+                                            (self.ZZ_out == min(self.ZZ_out))
+                                            )
+
         BZ = open(self.boundary_zones_filename,'w+')
 
+        # write nodes for domain bottom
         BZ.write('zone\n')
         BZ.write('%05d\n' % zonecounter)
         zonecounter = zonecounter + 1
@@ -333,6 +386,8 @@ class create_FEHM_run:
             else:
                 BZ.write(' %d\n' % self.node_nums_domain_bottom[x])
             col_ind = col_ind + 1
+
+        # write nodes for domain top
         BZ.write('%05d\n' % zonecounter)
         zonecounter = zonecounter + 1
         BZ.write('nnum\n')
@@ -346,6 +401,66 @@ class create_FEHM_run:
             else:
                 BZ.write(' %d\n' % self.node_nums_domain_top[x])
             col_ind = col_ind + 1
+
+        # write nodes for domain top edges
+        BZ.write('%05d\n' % zonecounter)
+        zonecounter = zonecounter + 1
+        BZ.write('nnum\n')
+        BZ.write('     %d\n' % self.node_nums_top_edges.size)
+        col_ind = 1
+        for x in range(self.node_nums_top_edges.size):
+            if x == self.node_nums_top_edges.size-1:
+                BZ.write(' %d\n' % self.node_nums_top_edges[x])
+            elif col_ind % 10 != 0:
+                BZ.write(' %d' % self.node_nums_top_edges[x])
+            else:
+                BZ.write(' %d\n' % self.node_nums_top_edges[x])
+            col_ind = col_ind + 1
+
+        # write nodes for domain bottom edges
+        BZ.write('%05d\n' % zonecounter)
+        zonecounter = zonecounter + 1
+        BZ.write('nnum\n')
+        BZ.write('     %d\n' % self.node_nums_bottom_edges.size)
+        col_ind = 1
+        for x in range(self.node_nums_bottom_edges.size):
+            if x == self.node_nums_bottom_edges.size-1:
+                BZ.write(' %d\n' % self.node_nums_bottom_edges[x])
+            elif col_ind % 10 != 0:
+                BZ.write(' %d' % self.node_nums_bottom_edges[x])
+            else:
+                BZ.write(' %d\n' % self.node_nums_bottom_edges[x])
+            col_ind = col_ind + 1
+        # write nodes for domain top corners
+        BZ.write('%05d\n' % zonecounter)
+        zonecounter = zonecounter + 1
+        BZ.write('nnum\n')
+        BZ.write('     %d\n' % self.node_nums_top_corners.size)
+        col_ind = 1
+        for x in range(self.node_nums_top_corners.size):
+            if x == self.node_nums_top_corners.size-1:
+                BZ.write(' %d\n' % self.node_nums_top_corners[x])
+            elif col_ind % 10 != 0:
+                BZ.write(' %d' % self.node_nums_top_corners[x])
+            else:
+                BZ.write(' %d\n' % self.node_nums_top_corners[x])
+            col_ind = col_ind + 1
+        # write nodes for domain bottom corners
+        BZ.write('%05d\n' % zonecounter)
+        zonecounter = zonecounter + 1
+        BZ.write('nnum\n')
+        BZ.write('     %d\n' % self.node_nums_bottom_corners.size)
+        col_ind = 1
+        for x in range(self.node_nums_bottom_corners.size):
+            if x == self.node_nums_bottom_corners.size-1:
+                BZ.write(' %d\n' % self.node_nums_bottom_corners[x])
+            elif col_ind % 10 != 0:
+                BZ.write(' %d' % self.node_nums_bottom_corners[x])
+            else:
+                BZ.write(' %d\n' % self.node_nums_bottom_corners[x])
+            col_ind = col_ind + 1
+
+        # write file end pieces
         BZ.write('\n')
         BZ.write('stop')
         BZ.close()
@@ -402,6 +517,18 @@ class create_FEHM_run:
         RZ.write('hflx\n')
         RZ.write('-00005  0  0  %.2f  %.2f\n' % (self.temp_lower,self.mult_lower))
         RZ.write('-00006  0  0  %.2f  %.2f\n' % (self.temp_upper,self.mult_upper))
+        if self.mult_upper == 0:
+            RZ.write('-00007  0  0  %.2f  %.2f\n' % (self.temp_upper/2,self.mult_upper))
+            RZ.write('-00009  0  0  %.2f  %.2f\n' % (self.temp_upper/4,self.mult_upper))
+        else:
+            RZ.write('-00007  0  0  %.2f  %.2f\n' % (self.temp_upper,self.mult_upper))
+            RZ.write('-00009  0  0  %.2f  %.2f\n' % (self.temp_upper,self.mult_upper))  
+        if self.mult_lower == 0:
+            RZ.write('-00008  0  0  %.2f  %.2f\n' % (self.temp_lower/2,self.mult_lower))
+            RZ.write('-00010  0  0  %.2f  %.2f\n' % (self.temp_lower/4,self.mult_lower))
+        else:
+            RZ.write('-00008  0  0  %.2f  %.2f\n' % (self.temp_lower,self.mult_lower))
+            RZ.write('-00010  0  0  %.2f  %.2f\n' % (self.temp_lower,self.mult_lower))                  
         RZ.write('\n')
         RZ.write('# ----------------------MAT PROPERTIES--------------------------------\n')
         RZ.write('rock\n')
