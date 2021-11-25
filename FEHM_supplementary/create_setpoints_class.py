@@ -339,6 +339,7 @@ class create_FEHM_run:
                                             &
                                             (self.ZZ_out == min(self.ZZ_out))
                                               )
+        self.node_nums_bottom_edges = np.asarray(self.node_nums_bottom_edges).flatten()+1
 
         self.node_nums_top_edges = np.where(
                                             ((self.XX_out == max(self.XX_out)) | 
@@ -348,6 +349,7 @@ class create_FEHM_run:
                                             &
                                             (self.ZZ_out == max(self.ZZ_out))
                                             )
+        self.node_nums_top_edges = np.asarray(self.node_nums_top_edges).flatten()+1
 
         self.node_nums_top_corners = np.where(
                                              (
@@ -358,6 +360,7 @@ class create_FEHM_run:
                                             &
                                             (self.ZZ_out == max(self.ZZ_out))
                                             )
+        self.node_nums_top_corners = np.asarray(self.node_nums_top_corners).flatten()+1
 
         self.node_nums_bottom_corners = np.where(
                                              (
@@ -368,6 +371,7 @@ class create_FEHM_run:
                                             &
                                             (self.ZZ_out == min(self.ZZ_out))
                                             )
+        self.node_nums_bottom_corners = np.asarray(self.node_nums_bottom_corners).flatten()+1
 
         BZ = open(self.boundary_zones_filename,'w+')
 
