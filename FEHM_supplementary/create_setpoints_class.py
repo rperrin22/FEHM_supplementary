@@ -141,7 +141,7 @@ class create_FEHM_run:
         # self.surf_upper = self.D['Z'].to_numpy() + self.zbulk
         # self.surf_upper = np.reshape(self.surf_upper,self.XXtemp.shape)
 
-        self.surf_upper = interp(self.XXtemp,self.YYtemp)
+        self.surf_upper = interp(self.XXtemp,self.YYtemp) + self.zbulk
 
         self.surf_lower = self.surf_upper - self.crust_thickness
         self.bound_upper = np.ones(self.XXtemp.shape)*self.max_z
