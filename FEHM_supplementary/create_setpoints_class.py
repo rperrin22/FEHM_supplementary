@@ -566,8 +566,8 @@ class create_FEHM_run:
         RZ.write('file\n')
         RZ.write('%s\n' % self.boundary_zones_filename)
         RZ.write('hflx\n')
-        RZ.write('-00005  0  0  %.2f  %.2f\n' % (self.temp_lower,self.mult_lower))
-        RZ.write('-00006  0  0  %.2f  %.2f\n' % (self.temp_upper,self.mult_upper))
+        RZ.write('-00005  0  0  %.4f  %.2f\n' % (self.temp_lower,self.mult_lower))
+        RZ.write('-00006  0  0  %.4f  %.2f\n' % (self.temp_upper,self.mult_upper))
         if self.mult_upper == 0:
             RZ.write('-00007  0  0  %.6f  %.2f\n' % (self.temp_upper/2,self.mult_upper))
             RZ.write('-00009  0  0  %.6f  %.2f\n' % (self.temp_upper/4,self.mult_upper))
