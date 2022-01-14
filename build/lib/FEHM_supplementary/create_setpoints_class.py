@@ -3,6 +3,7 @@ import pandas as pd
 from pylagrit import PyLaGriT
 from matplotlib import pyplot as plt
 from scipy import interpolate
+from scipy.interpolate import griddata
 
 class create_FEHM_run:
     def __init__(self,test_number,param_file):
@@ -25,6 +26,7 @@ class create_FEHM_run:
         self.dx = float(params['dx'].values[0])
         self.dy = float(params['dy'].values[0])
         self.dz = (self.max_z - self.min_z + 1)/(self.upper_numlayers + self.middle_numlayers + self.lower_numlayers)
+        self.fault_heat = float(params['fault_heat'].values[0] * self.dz * self.dy / 1e9)
         self.xvec = np.arange(self.min_x,self.max_x,self.dx)
         self.yvec = np.arange(self.min_y,self.max_y,self.dy)
         self.zvec = np.arange(self.min_z,self.max_z,self.dz)
@@ -58,10 +60,20 @@ class create_FEHM_run:
         self.perm_middle_ocean = float(params['perm_middle_ocean'].values[0])
         self.perm_middle_continental = float(params['perm_middle_continental'].values[0])
         self.perm_upper = float(params['perm_upper'].values[0])
-        self.temp_lower = float(params['temp_lower'].values[0])
-        self.temp_upper = float(params['temp_upper'].values[0])
+
         self.mult_lower = float(params['mult_lower'].values[0])
         self.mult_upper = float(params['mult_upper'].values[0])
+
+        # convert from mW/m^2 to MW if mult upper and lower are 0
+        if self.mult_lower == 0:
+            self.temp_lower = float(params['temp_lower'].values[0] * self.dx * self.dy / 1e9)
+        else:
+            self.temp_lower = float(params['temp_lower'].values[0])
+        if self.mult_upper ==0:
+            self.temp_upper = float(params['temp_upper'].values[0] * self.dx * self.dy / 1e9)
+        else:
+            self.temp_upper = float(params['temp_upper'].values[0])   
+
         self.cond_lower = float(params['cond_lower'].values[0])
         self.cond_middle_ocean = float(params['cond_middle_ocean'].values[0])
         self.cond_middle_continental = float(params['cond_middle_continental'].values[0])
@@ -125,7 +137,10 @@ class create_FEHM_run:
         header_list = ["X","Y","Z"]
         self.D = pd.read_csv(self.surf_filename,sep=' ',names=header_list)
 
-        self.surf_upper = self.D['Z'].to_numpy() + self.zbulk
+        # interpolate onto the meshed grid
+        self.ZZtemp = griddata((self.D['X'], self.D['Y']),self.D['Z'],(self.XXtemp.flatten(),self.YYtemp.flatten()),method='linear')
+
+        self.surf_upper = self.ZZtemp + self.zbulk
         self.surf_upper = np.reshape(self.surf_upper,self.XXtemp.shape)
         self.surf_lower = self.surf_upper - self.crust_thickness
         self.bound_upper = np.ones(self.XXtemp.shape)*self.max_z
@@ -186,9 +201,9 @@ class create_FEHM_run:
         # export a csv with the XYZ's for the mesh nodes.  This will be used later
         # for running LaGriT but can also be used to externally plot the mesh nodes
         # for QC purposes.
-        self.XX_out = self.XX.flatten(order = 'F')
-        self.YY_out = self.YY.flatten(order = 'F')
-        self.ZZ_out = self.ZZ.flatten(order = 'F')
+        self.XX_out = self.XX.flatten()
+        self.YY_out = self.YY.flatten()
+        self.ZZ_out = self.ZZ.flatten()
 
         self.DF = pd.DataFrame({'x':self.XX_out, 'y':self.YY_out, 'z':self.ZZ_out})
         self.DF.to_csv(self.csv_filename,index=False,header=False)
@@ -213,7 +228,7 @@ class create_FEHM_run:
         self.f = interpolate.interp1d(self.FF.Northing,self.FF.Easting, fill_value=(self.FF.Easting.iloc[-1]+10,self.FF.Easting.iloc[0]-10), bounds_error=False)
 
         # first make an x-boundary column
-        self.DF['x_boun'] = self.f(self.DF['y'])
+        self.DF['x_boun'] = self.f(self.DF['x'])
 
         # initialize a zone column to zeros
         #   zones will be as follows:
@@ -221,9 +236,12 @@ class create_FEHM_run:
         #      2 - oceanic crust
         #      3 - continental crust
         #      4 - sediments
+        #      11 - crustal fault
         self.DF['mat_zone'] = self.DF['x_boun']*0
 
-        self.DF.mat_zone[self.DF.x[:].copy() > self.DF.x_boun[:].copy()] = 3  # setting continental crust
+        self.DF.mat_zone[self.DF.x[:].copy() > self.DF.x_boun[:].copy()] = 11 # setting the crustal boundary cells
+        self.DF.mat_zone[(self.DF.x[:].copy() > self.DF.x_boun[:].copy()) & ((self.DF.y[:].copy() == max(self.DF.y[:].copy())) | (self.DF.y[:].copy() == min(self.DF.y[:].copy())))] = 12
+        self.DF.mat_zone[self.DF.x[:].copy() > (self.DF.x_boun[:].copy() + self.dx)] = 3  # setting continental crust
         self.DF.mat_zone[self.DF.x[:].copy() <= self.DF.x_boun[:].copy()] = 2  # setting oceanic crust
         self.DF.mat_zone[self.DF.z[:].copy() < self.DF.low_surf[:].copy()] = 1  # setting below the crust
         self.DF.mat_zone[self.DF.z[:].copy() > self.DF.upp_surf[:].copy()] = 4  # setting the sediment zone
@@ -237,7 +255,7 @@ class create_FEHM_run:
         self.node_nums_bottom = testerbob[['orig_ind']].to_numpy()+1
         testerbob = self.DF[self.DF.mat_zone==2].copy()
         self.node_nums_middle_ocean = testerbob[['orig_ind']].to_numpy()+1
-        testerbob = self.DF[self.DF.mat_zone==3].copy()
+        testerbob = self.DF[(self.DF.mat_zone==3) | (self.DF.mat_zone==11) | (self.DF.mat_zone==12)].copy()
         self.node_nums_middle_continental = testerbob[['orig_ind']].to_numpy()+1
         testerbob = self.DF[self.DF.mat_zone==4].copy()
         self.node_nums_upper = testerbob[['orig_ind']].to_numpy()+1
@@ -307,9 +325,21 @@ class create_FEHM_run:
         # boundary zones will be:
         #   00005 - bottom boundary
         #   00006 - top boundary
+        #   00007 - top edges
+        #   00008 - bottom edges
+        #   00009 - top corners
+        #   00010 - bottom corners
+        #   00011 - fault zone
+        #   00012 - fault zone edges
 
         # in the future add one here to create a vertical internal boundary
         # that will be used to generate heat along the fault.
+
+        testerbob = self.DF[self.DF.mat_zone==11].copy()
+        self.node_nums_fault = testerbob[['orig_ind']].to_numpy()+1
+
+        testerbob = self.DF[self.DF.mat_zone==12].copy()
+        self.node_nums_fault_edges = testerbob[['orig_ind']].to_numpy()+1       
 
         self.node_nums_domain_bottom = np.where(self.ZZ_out == min(self.ZZ_out))
         self.node_nums_domain_bottom = np.asarray(self.node_nums_domain_bottom).flatten()+1
@@ -317,8 +347,51 @@ class create_FEHM_run:
         self.node_nums_domain_top = np.where(self.ZZ_out == max(self.ZZ_out))
         self.node_nums_domain_top = np.asarray(self.node_nums_domain_top).flatten()+1
 
+        self.node_nums_bottom_edges = np.where(
+                                            ((self.XX_out == max(self.XX_out)) | 
+                                            (self.YY_out == max(self.YY_out)) |
+                                            (self.XX_out == min(self.XX_out)) |
+                                            (self.YY_out == min(self.YY_out))) 
+                                            &
+                                            (self.ZZ_out == min(self.ZZ_out))
+                                              )
+        self.node_nums_bottom_edges = np.asarray(self.node_nums_bottom_edges).flatten()+1
+
+        self.node_nums_top_edges = np.where(
+                                            ((self.XX_out == max(self.XX_out)) | 
+                                            (self.YY_out == max(self.YY_out)) |
+                                            (self.XX_out == min(self.XX_out)) |
+                                            (self.YY_out == min(self.YY_out))) 
+                                            &
+                                            (self.ZZ_out == max(self.ZZ_out))
+                                            )
+        self.node_nums_top_edges = np.asarray(self.node_nums_top_edges).flatten()+1
+
+        self.node_nums_top_corners = np.where(
+                                             (
+                                            ( (self.XX_out == max(self.XX_out)) & (self.YY_out == max(self.YY_out)) ) | 
+                                            ( (self.XX_out == min(self.XX_out)) & (self.YY_out == max(self.YY_out)) ) |
+                                            ( (self.XX_out == max(self.XX_out)) & (self.YY_out == min(self.YY_out)) ) |
+                                            ( (self.XX_out == min(self.XX_out)) & (self.YY_out == min(self.YY_out)) )) 
+                                            &
+                                            (self.ZZ_out == max(self.ZZ_out))
+                                            )
+        self.node_nums_top_corners = np.asarray(self.node_nums_top_corners).flatten()+1
+
+        self.node_nums_bottom_corners = np.where(
+                                             (
+                                            ( (self.XX_out == max(self.XX_out)) & (self.YY_out == max(self.YY_out)) ) | 
+                                            ( (self.XX_out == min(self.XX_out)) & (self.YY_out == max(self.YY_out)) ) |
+                                            ( (self.XX_out == max(self.XX_out)) & (self.YY_out == min(self.YY_out)) ) |
+                                            ( (self.XX_out == min(self.XX_out)) & (self.YY_out == min(self.YY_out)) )) 
+                                            &
+                                            (self.ZZ_out == min(self.ZZ_out))
+                                            )
+        self.node_nums_bottom_corners = np.asarray(self.node_nums_bottom_corners).flatten()+1
+
         BZ = open(self.boundary_zones_filename,'w+')
 
+        # write nodes for domain bottom
         BZ.write('zone\n')
         BZ.write('%05d\n' % zonecounter)
         zonecounter = zonecounter + 1
@@ -333,6 +406,8 @@ class create_FEHM_run:
             else:
                 BZ.write(' %d\n' % self.node_nums_domain_bottom[x])
             col_ind = col_ind + 1
+
+        # write nodes for domain top
         BZ.write('%05d\n' % zonecounter)
         zonecounter = zonecounter + 1
         BZ.write('nnum\n')
@@ -346,6 +421,97 @@ class create_FEHM_run:
             else:
                 BZ.write(' %d\n' % self.node_nums_domain_top[x])
             col_ind = col_ind + 1
+
+        # write nodes for domain top edges
+        BZ.write('%05d\n' % zonecounter)
+        zonecounter = zonecounter + 1
+        BZ.write('nnum\n')
+        BZ.write('     %d\n' % self.node_nums_top_edges.size)
+        col_ind = 1
+        for x in range(self.node_nums_top_edges.size):
+            if x == self.node_nums_top_edges.size-1:
+                BZ.write(' %d\n' % self.node_nums_top_edges[x])
+            elif col_ind % 10 != 0:
+                BZ.write(' %d' % self.node_nums_top_edges[x])
+            else:
+                BZ.write(' %d\n' % self.node_nums_top_edges[x])
+            col_ind = col_ind + 1
+
+        # write nodes for domain bottom edges
+        BZ.write('%05d\n' % zonecounter)
+        zonecounter = zonecounter + 1
+        BZ.write('nnum\n')
+        BZ.write('     %d\n' % self.node_nums_bottom_edges.size)
+        col_ind = 1
+        for x in range(self.node_nums_bottom_edges.size):
+            if x == self.node_nums_bottom_edges.size-1:
+                BZ.write(' %d\n' % self.node_nums_bottom_edges[x])
+            elif col_ind % 10 != 0:
+                BZ.write(' %d' % self.node_nums_bottom_edges[x])
+            else:
+                BZ.write(' %d\n' % self.node_nums_bottom_edges[x])
+            col_ind = col_ind + 1
+        # write nodes for domain top corners
+        BZ.write('%05d\n' % zonecounter)
+        zonecounter = zonecounter + 1
+        BZ.write('nnum\n')
+        BZ.write('     %d\n' % self.node_nums_top_corners.size)
+        col_ind = 1
+        for x in range(self.node_nums_top_corners.size):
+            if x == self.node_nums_top_corners.size-1:
+                BZ.write(' %d\n' % self.node_nums_top_corners[x])
+            elif col_ind % 10 != 0:
+                BZ.write(' %d' % self.node_nums_top_corners[x])
+            else:
+                BZ.write(' %d\n' % self.node_nums_top_corners[x])
+            col_ind = col_ind + 1
+        # write nodes for domain bottom corners
+        BZ.write('%05d\n' % zonecounter)
+        zonecounter = zonecounter + 1
+        BZ.write('nnum\n')
+        BZ.write('     %d\n' % self.node_nums_bottom_corners.size)
+        col_ind = 1
+        for x in range(self.node_nums_bottom_corners.size):
+            if x == self.node_nums_bottom_corners.size-1:
+                BZ.write(' %d\n' % self.node_nums_bottom_corners[x])
+            elif col_ind % 10 != 0:
+                BZ.write(' %d' % self.node_nums_bottom_corners[x])
+            else:
+                BZ.write(' %d\n' % self.node_nums_bottom_corners[x])
+            col_ind = col_ind + 1
+
+        # write nodes for fault zone
+        BZ.write('%05d\n' % zonecounter)
+        zonecounter = zonecounter + 1
+        BZ.write('nnum\n')
+        BZ.write('     %d\n' % self.node_nums_fault.size)
+        col_ind = 1
+        for x in range(self.node_nums_fault.size):
+            if x == self.node_nums_fault.size-1:
+                BZ.write(' %d\n' % self.node_nums_fault[x])
+            elif col_ind % 10 != 0:
+                BZ.write(' %d' % self.node_nums_fault[x])
+            else:
+                BZ.write(' %d\n' % self.node_nums_fault[x])
+            col_ind = col_ind + 1
+
+        # write nodes for fault zone edges
+        BZ.write('%05d\n' % zonecounter)
+        zonecounter = zonecounter + 1
+        BZ.write('nnum\n')
+        BZ.write('     %d\n' % self.node_nums_fault_edges.size)
+        col_ind = 1
+        for x in range(self.node_nums_fault_edges.size):
+            if x == self.node_nums_fault_edges.size-1:
+                BZ.write(' %d\n' % self.node_nums_fault_edges[x])
+            elif col_ind % 10 != 0:
+                BZ.write(' %d' % self.node_nums_fault_edges[x])
+            else:
+                BZ.write(' %d\n' % self.node_nums_fault_edges[x])
+            col_ind = col_ind + 1
+        
+
+        # write file end pieces
         BZ.write('\n')
         BZ.write('stop')
         BZ.close()
@@ -402,6 +568,21 @@ class create_FEHM_run:
         RZ.write('hflx\n')
         RZ.write('-00005  0  0  %.2f  %.2f\n' % (self.temp_lower,self.mult_lower))
         RZ.write('-00006  0  0  %.2f  %.2f\n' % (self.temp_upper,self.mult_upper))
+        if self.mult_upper == 0:
+            RZ.write('-00007  0  0  %.6f  %.2f\n' % (self.temp_upper/2,self.mult_upper))
+            RZ.write('-00009  0  0  %.6f  %.2f\n' % (self.temp_upper/4,self.mult_upper))
+        else:
+            RZ.write('-00007  0  0  %.6f  %.2f\n' % (self.temp_upper,self.mult_upper))
+            RZ.write('-00009  0  0  %.6f  %.2f\n' % (self.temp_upper,self.mult_upper))  
+        if self.mult_lower == 0:
+            RZ.write('-00008  0  0  %.6f  %.2f\n' % (self.temp_lower/2,self.mult_lower))
+            RZ.write('-00010  0  0  %.6f  %.2f\n' % (self.temp_lower/4,self.mult_lower))
+        else:
+            RZ.write('-00008  0  0  %.6f  %.2f\n' % (self.temp_lower,self.mult_lower))
+            RZ.write('-00010  0  0  %.6f  %.2f\n' % (self.temp_lower,self.mult_lower))
+        RZ.write('-00011  0  0  %.6f  0\n' % (self.fault_heat))
+        RZ.write('-00012  0  0  %.6f  0\n' % (self.fault_heat/2))
+
         RZ.write('\n')
         RZ.write('# ----------------------MAT PROPERTIES--------------------------------\n')
         RZ.write('rock\n')
