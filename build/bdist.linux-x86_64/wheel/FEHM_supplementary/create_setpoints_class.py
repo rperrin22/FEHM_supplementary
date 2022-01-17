@@ -26,7 +26,9 @@ class create_FEHM_run:
         self.dx = float(params['dx'].values[0])
         self.dy = float(params['dy'].values[0])
         self.dz = (self.max_z - self.min_z + 1)/(self.upper_numlayers + self.middle_numlayers + self.lower_numlayers)
-        self.fault_heat = float(params['fault_heat'].values[0] * self.dz * self.dy / 1e9)
+        self.crust_thickness = float(params['crust_thickness'].values[0])
+        self.aquifer_dz = self.crust_thickness/self.middle_numlayers
+        self.fault_heat = float(params['fault_heat'].values[0] * self.aquifer_dz * self.dy / 1e9)
         self.xvec = np.arange(self.min_x,self.max_x,self.dx)
         self.yvec = np.arange(self.min_y,self.max_y,self.dy)
         self.zvec = np.arange(self.min_z,self.max_z,self.dz)
@@ -87,7 +89,6 @@ class create_FEHM_run:
         self.final_sim_time = float(params['final_sim_time'].values[0])
         self.max_time_steps = float(params['max_time_steps'].values[0])
         self.info_print_int = float(params['info_print_int'].values[0])
-        self.crust_thickness = float(params['crust_thickness'].values[0])
         self.rp_mult = float(params['athy_multiplier'].values[0])
         self.rp_exp = float(params['athy_exp'].values[0])
 
